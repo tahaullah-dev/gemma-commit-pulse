@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GemmaCommit Pulse — Turn raw Git changes into engineering intelligence</title>
+  <meta name="description" content="Paste a git diff, get structured engineering intelligence, risk assessment, and a production-ready changelog." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500/30">
+
+  <!-- Header -->
+   <header class="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-3">
+        <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-lg shadow-lg shadow-indigo-500/25">⚡</div>
+        <div>
+          <h1 class="text-base font-semibold tracking-tight">GemmaCommit <span class="text-indigo-400">Pulse</span></h1>
+          <p class="hidden text-xs text-slate-400 sm:block">Turn raw Git changes into engineering intelligence</p>
+        </div>
+      </div>
+      <div class="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+        <span id="mode-pill" class="max-w-[60%] truncate rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-400">checking…</span>
+        <button id="btn-refresh-history"
+                class="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-white">
+          Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Input -->
+  <section class="mx-auto max-w-7xl px-4 pt-6">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-xl shadow-black/30">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <label for="diff-input" class="text-sm font-semibold text-slate-300">Git diff input</label>
+        <div class="flex gap-2">
+          <button id="btn-sample" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-indigo-500/60 hover:text-white">Load sample</button>
+          <button id="btn-clear" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-rose-500/60 hover:text-white">Clear</button>
+        </div>
+      </div>
+
+      <div id="dropzone" class="mt-3 rounded-xl border-2 border-dashed border-slate-700/80 bg-slate-950/50 transition">
+        <textarea id="diff-input" spellcheck="false" rows="12"
+                  placeholder="Paste a unified git diff here — output of `git diff`, `git diff main...HEAD`, or a .patch file.&#10;&#10;Or drop a .diff / .patch file onto this box."
+                  class="h-56 w-full resize-y bg-transparent p-4 font-mono text-xs leading-relaxed text-slate-200 outline-none placeholder:text-slate-600"></textarea>
+      </div>
+
+      <div class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          <label class="flex-1 cursor-pointer justify-center rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-center font-medium text-slate-300 transition hover:border-indigo-500/60 hover:text-white sm:flex-none sm:justify-start sm:py-1.5">
+            Upload .diff / .patch
+            <input id="file-input" type="file" accept=".diff,.patch,.txt" class="hidden" />
+          </label>
+          <span id="char-count" class="shrink-0">0 chars</span>
+          <span id="file-name" class="hidden shrink-0 truncate rounded-full bg-indigo-500/15 px-2 py-0.5 text-[11px] font-semibold text-indigo-300"></span>
+        </div>
+        <button id="btn-analyze"
+                class="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:py-2.5">
+          <span>Analyze with Gemma</span>
+          <span class="transition group-hover:translate-x-0.5">→</span>
+        </button>
+      </div>
+
+    <div id="error-banner" class="mt-3 hidden rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"></div>
+  </section>
+
+  <!-- Loading -->
+  <div id="loading" class="mx-auto hidden max-w-7xl px-4 pt-6">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+      <div class="flex items-center gap-3">
+        <div class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
+        <p class="text-sm text-slate-300">Gemma is reading the diff…</p>
+      </div>
+      <div class="mt-5 space-y-2">
+        <div class="shimmer h-3 w-3/4 rounded"></div>
+        <div class="shimmer h-3 w-full rounded"></div>
+        <div class="shimmer h-3 w-2/3 rounded"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <main id="results" class="mx-auto hidden max-w-7xl space-y-5 px-4 pb-10 pt-6">
+
+    <div id="meta-line" class="flex flex-wrap items-center gap-2 text-xs text-slate-400"></div>
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <!-- Risk -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Risk assessment</p>
+        <div class="mt-3 flex items-end gap-3">
+          <span id="risk-score" class="text-5xl font-black leading-none">–</span>
+          <span class="pb-1 text-sm text-slate-500">/100</span>
+          <span id="risk-level" class="mb-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide">–</span>
+        </div>
+        <div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+          <div id="risk-bar" class="h-full w-0 rounded-full transition-all duration-700"></div>
+        </div>
+        <p class="mt-3 text-xs text-slate-400">Confidence: <span id="confidence" class="font-semibold text-slate-200">–</span></p>
+      </div>
+
+      <!-- Summary -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 lg:col-span-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Executive summary</p>
+          <span class="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-300">AI-inferred</span>
+        </div>
+        <p id="summary-text" class="mt-3 text-sm leading-relaxed text-slate-200">–</p>
+        <div class="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Inferred intent</p>
+          <p id="intent-text" class="mt-1 text-sm text-slate-300">–</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verified facts -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div class="flex flex-wrap items-center gap-2">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Diff facts</p>
+        <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">Verified from diff</span>
+      </div>
+      <div id="facts-grid" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4"></div>
+      <div class="mt-5 overflow-x-auto rounded-xl border border-slate-800">
+        <table class="min-w-full text-left text-sm">
+          <thead class="bg-slate-950/60 text-[11px] uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-3 py-2 font-semibold">File</th>
+              <th class="px-3 py-2 font-semibold">Change</th>
+              <th class="px-3 py-2 text-right font-semibold">+</th>
+              <th class="px-3 py-2 text-right font-semibold">−</th>
+            </tr>
+          </thead>
+          <tbody id="files-body" class="divide-y divide-slate-800/70"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Categories -->
+    <section id="categories-section" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-5">
+      <div class="flex flex-wrap items-center gap-2">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Categorized changes</p>
+        <span class="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-300">AI-inferred</span>
+      </div>
+      <div id="categories" class="mt-4 grid gap-3 md:grid-cols-2"></div>
+    </section>
+
+    <!-- Security + bugs -->
+    <div class="grid gap-5 md:grid-cols-2">
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">🔒 Security observations</p>
+        <ul id="security-list" class="mt-3 space-y-2 text-sm"></ul>
+      </section>
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">⚠️ Potential bugs</p>
+        <ul id="bugs-list" class="mt-3 space-y-2 text-sm"></ul>
+      </section>
+    </div>
+
+    <!-- Breaking changes -->
+    <section id="breaking-section" class="hidden rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
+      <p class="text-xs font-semibold uppercase tracking-wider text-amber-300">💥 Breaking changes</p>
+      <ul id="breaking-list" class="mt-3 space-y-2 text-sm"></ul>
+    </section>
+
+    <!-- Changelog -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Markdown changelog</p>
+          <span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">GitHub-ready</span>
+        </div>
+        <button id="btn-copy"
+                class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-indigo-500/60 hover:text-white">
+          Copy to clipboard
+        </button>
+      </div>
+      <pre id="changelog-box" class="mt-3 max-h-[30rem] overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs leading-relaxed text-slate-300"></pre>
+    </section>
+  </main>
+
+  <!-- History -->
+  <section class="mx-auto max-w-7xl px-4 pb-16">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Recent analyses</p>
+        <button id="btn-clear-history" class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1 text-[11px] font-medium text-slate-400 transition hover:border-rose-500/60 hover:text-rose-300">Clear all</button>
+      </div>
+      <ul id="history-list" class="mt-3 space-y-2"></ul>
+    </div>
+  </section>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
